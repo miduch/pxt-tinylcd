@@ -1,6 +1,6 @@
 {
     "name": "tinylcd",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "Easy blocks for the Waveshare 1.8\" LCD (ST7735S, 160x128) on micro:bit",
     "license": "MIT",
     "dependencies": {
