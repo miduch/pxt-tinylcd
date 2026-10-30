@@ -1,0 +1,17 @@
+tinylcd.start()
+tinylcd.clearScreen(0x000080)
+tinylcd.showTextCentered("Tiny LCD", 4, 2, 0xffff00, 0x000080)
+tinylcd.drawRect(4, 24, 50, 30, 0xff0000, LcdStyle.Filled)
+tinylcd.drawRect(60, 24, 50, 30, 0x00ff00, LcdStyle.Outline)
+tinylcd.drawCircle(136, 39, 14, 0x00ffff, LcdStyle.Filled)
+tinylcd.drawCircle(136, 39, 18, 0xffffff, LcdStyle.Outline)
+tinylcd.drawLine(0, 60, 159, 60, 0xffffff)
+tinylcd.drawIcon(IconNames.Heart, 4, 66, 8, 0xff0080)
+tinylcd.drawBox(50, 70, 106, 24, 0x8000ff, "Press A", 0xffffff, 1)
+tinylcd.showText("Score:", 50, 104, 1, 0xffffff, 0x000080)
+tinylcd.showNumber(42, 90, 100, 2, 0x00ff00, 0x000080)
+tinylcd.setBrightness(80)
+
+input.onButtonPressed(Button.A, function () {
+    tinylcd.drawBox(50, 70, 106, 24, tinylcd.randomColor(), "Nice!", 0xffffff, 1)
+})
