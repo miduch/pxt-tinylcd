@@ -16,5 +16,6 @@
     "supportedTargets": [
         "microbit"
     ],
+    "preferredEditor": "blocksprj",
     "public": true
 }
