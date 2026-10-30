@@ -5,17 +5,31 @@ enum LcdStyle {
     Outline = 1
 }
 
+enum LcdRotation {
+    //% block="landscape"
+    Landscape = 0,
+    //% block="portrait"
+    Portrait = 1,
+    //% block="landscape flipped"
+    LandscapeFlipped = 2,
+    //% block="portrait flipped"
+    PortraitFlipped = 3
+}
+
 /**
  * Draw shapes, text and pictures on the Waveshare 1.8" LCD (160 x 128).
  */
 //% weight=100 color="#ff6f00" icon="\uf108" block="Tiny LCD"
-//% groups='["Screen", "Shapes", "Text", "Pictures", "Colors"]'
+//% groups='["Screen", "Shapes", "Text", "Pictures", "Colors", "Widgets"]'
 namespace tinylcd {
-    const WIDTH = 160
-    const HEIGHT = 128
+    const LANDSCAPE_WIDTH = 160
+    const LANDSCAPE_HEIGHT = 128
     // ST7735S panel RAM is offset from the visible area in landscape mode
-    const X_OFFSET = 1
-    const Y_OFFSET = 2
+    let xOffset = 1
+    let yOffset = 2
+    let screenWidth = LANDSCAPE_WIDTH
+    let screenHeight = LANDSCAPE_HEIGHT
+    let screenRotation = LcdRotation.Landscape
 
     const PIN_CS = DigitalPin.P16
     const PIN_DC = DigitalPin.P12
@@ -56,8 +70,8 @@ namespace tinylcd {
     }
 
     function setWindow(x0: number, y0: number, x1: number, y1: number) {
-        command(0x2A, [0, x0 + X_OFFSET, 0, x1 + X_OFFSET])
-        command(0x2B, [0, y0 + Y_OFFSET, 0, y1 + Y_OFFSET])
+        command(0x2A, [0, x0 + xOffset, 0, x1 + xOffset])
+        command(0x2B, [0, y0 + yOffset, 0, y1 + yOffset])
         command(0x2C, [])
     }
 
@@ -92,8 +106,8 @@ namespace tinylcd {
         h = h | 0
         if (x < 0) { w += x; x = 0 }
         if (y < 0) { h += y; y = 0 }
-        if (x + w > WIDTH) w = WIDTH - x
-        if (y + h > HEIGHT) h = HEIGHT - y
+        if (x + w > screenWidth) w = screenWidth - x
+        if (y + h > screenHeight) h = screenHeight - y
         if (w <= 0 || h <= 0) return
 
         setWindow(x, y, x + w - 1, y + h - 1)
@@ -109,7 +123,7 @@ namespace tinylcd {
     }
 
     function pixelRaw(x: number, y: number, c: number) {
-        if (x < 0 || y < 0 || x >= WIDTH || y >= HEIGHT) return
+        if (x < 0 || y < 0 || x >= screenWidth || y >= screenHeight) return
         setWindow(x, y, x, y)
         beginData()
         pins.spiWrite((c >> 8) & 0xff)
@@ -120,7 +134,7 @@ namespace tinylcd {
     function drawChar(code: number, x: number, y: number, size: number, fg: number, bg: number) {
         const w = 6 * size
         const h = 8 * size
-        if (x < 0 || y < 0 || x + w > WIDTH || y + h > HEIGHT) return
+        if (x < 0 || y < 0 || x + w > screenWidth || y + h > screenHeight) return
         if (code < 32 || code > 126) code = 63
 
         if (glyphSize != size) {
@@ -202,8 +216,7 @@ namespace tinylcd {
         command(0x3A, [0x05]) // 16-bit colour
         command(0x36, [0xA0]) // landscape
         command(0x29, []) // display on
-
-        fillRectRaw(0, 0, WIDTH, HEIGHT, 0)
+        fillRectRaw(0, 0, screenWidth, screenHeight, 0)
         pins.digitalWritePin(DigitalPin.P1, 1)
     }
 
@@ -215,7 +228,7 @@ namespace tinylcd {
     //% group="Screen" weight=95
     export function clearScreen(color: number = 0x000000) {
         if (!ensure()) return
-        fillRectRaw(0, 0, WIDTH, HEIGHT, to565(color))
+        fillRectRaw(0, 0, screenWidth, screenHeight, to565(color))
     }
 
     /**
@@ -229,23 +242,62 @@ namespace tinylcd {
         pins.analogWritePin(AnalogPin.P1, Math.map(Math.constrain(percent, 0, 100), 0, 100, 0, 1023))
     }
 
+    /**
+     * Change the screen orientation. Changing orientation clears the screen.
+     */
+    //% blockId=tinylcd_rotation block="set screen rotation to $rotation"
+    //% group="Screen" weight=89
+    export function setRotation(rotation: LcdRotation) {
+        if (!ensure()) return
+        rotation = Math.constrain(rotation | 0, 0, 3)
+        if (rotation == screenRotation) return
+
+        screenRotation = rotation
+        if (rotation == LcdRotation.Landscape) {
+            screenWidth = LANDSCAPE_WIDTH
+            screenHeight = LANDSCAPE_HEIGHT
+            xOffset = 1
+            yOffset = 2
+            command(0x36, [0xA0])
+        } else if (rotation == LcdRotation.Portrait) {
+            screenWidth = LANDSCAPE_HEIGHT
+            screenHeight = LANDSCAPE_WIDTH
+            xOffset = 2
+            yOffset = 1
+            command(0x36, [0xC0])
+        } else if (rotation == LcdRotation.LandscapeFlipped) {
+            screenWidth = LANDSCAPE_WIDTH
+            screenHeight = LANDSCAPE_HEIGHT
+            xOffset = 1
+            yOffset = 2
+            command(0x36, [0x60])
+        } else {
+            screenWidth = LANDSCAPE_HEIGHT
+            screenHeight = LANDSCAPE_WIDTH
+            xOffset = 2
+            yOffset = 1
+            command(0x36, [0x00])
+        }
+        fillRectRaw(0, 0, screenWidth, screenHeight, 0)
+    }
+
     //% blockId=tinylcd_width block="screen width"
     //% group="Screen" weight=85
     export function width(): number {
-        return WIDTH
+        return screenWidth
     }
 
     //% blockId=tinylcd_height block="screen height"
     //% group="Screen" weight=84
     export function height(): number {
-        return HEIGHT
+        return screenHeight
     }
 
     /**
      * Draw a rectangle. x and y are the top-left corner.
      */
     //% blockId=tinylcd_rect block="draw $style rectangle at x $x y $y width $width height $height color $color"
-    //% x.min=0 x.max=159 y.min=0 y.max=127 width.defl=40 height.defl=30
+    //% x.min=0 x.max=159 y.min=0 y.max=159 width.defl=40 height.defl=30
     //% color.shadow="tinylcd_colorPicker" color.defl=0xff0000
     //% inlineInputMode=inline
     //% group="Shapes" weight=80
@@ -266,7 +318,7 @@ namespace tinylcd {
      * Draw a circle. x and y are the middle.
      */
     //% blockId=tinylcd_circle block="draw $style circle at x $x y $y radius $radius color $color"
-    //% x.min=0 x.max=159 y.min=0 y.max=127 radius.defl=10 radius.min=1 radius.max=64
+    //% x.min=0 x.max=159 y.min=0 y.max=159 radius.defl=10 radius.min=1 radius.max=64
     //% color.shadow="tinylcd_colorPicker" color.defl=0x00ff00
     //% inlineInputMode=inline
     //% group="Shapes" weight=75
@@ -284,33 +336,124 @@ namespace tinylcd {
             }
             return
         }
+        for (let dx = -radius; dx <= radius; dx++) {
+            const half = Math.round(Math.sqrt(radius * radius - dx * dx))
+            pixelRaw(x + dx, y + half, c)
+            pixelRaw(x + dx, y - half, c)
+        }
+    }
 
-        let f = 1 - radius
-        let ddx = 1
-        let ddy = -2 * radius
-        let px = 0
-        let py = radius
-        pixelRaw(x, y + radius, c)
-        pixelRaw(x, y - radius, c)
-        pixelRaw(x + radius, y, c)
-        pixelRaw(x - radius, y, c)
-        while (px < py) {
-            if (f >= 0) {
-                py--
-                ddy += 2
-                f += ddy
+    /**
+     * Draw an ellipse. x and y are the centre; radiusX and radiusY are its half-width and half-height.
+     */
+    //% blockId=tinylcd_ellipse block="draw $style ellipse at x $x y $y radius x $radiusX y $radiusY color $color"
+    //% x.min=0 x.max=159 y.min=0 y.max=159 radiusX.min=0 radiusX.max=80 radiusY.min=0 radiusY.max=64
+    //% radiusX.defl=20 radiusY.defl=12
+    //% color.shadow="tinylcd_colorPicker" color.defl=0x00ffff
+    //% inlineInputMode=inline
+    //% group="Shapes" weight=74
+    export function drawEllipse(x: number, y: number, radiusX: number, radiusY: number, color: number, style: LcdStyle = LcdStyle.Filled) {
+        if (!ensure()) return
+        x = x | 0
+        y = y | 0
+        radiusX = Math.abs(radiusX | 0)
+        radiusY = Math.abs(radiusY | 0)
+        const c = to565(color)
+
+        if (radiusX == 0) {
+            fillRectRaw(x, y - radiusY, 1, radiusY * 2 + 1, c)
+            return
+        }
+        if (radiusY == 0) {
+            fillRectRaw(x - radiusX, y, radiusX * 2 + 1, 1, c)
+            return
+        }
+
+        if (style == LcdStyle.Filled) {
+            for (let dy = -radiusY; dy <= radiusY; dy++) {
+                const half = Math.round(radiusX * Math.sqrt(1 - dy * dy / (radiusY * radiusY)))
+                fillRectRaw(x - half, y + dy, half * 2 + 1, 1, c)
             }
-            px++
-            ddx += 2
-            f += ddx
-            pixelRaw(x + px, y + py, c)
-            pixelRaw(x - px, y + py, c)
-            pixelRaw(x + px, y - py, c)
-            pixelRaw(x - px, y - py, c)
-            pixelRaw(x + py, y + px, c)
-            pixelRaw(x - py, y + px, c)
-            pixelRaw(x + py, y - px, c)
-            pixelRaw(x - py, y - px, c)
+        } else {
+            for (let dx = -radiusX; dx <= radiusX; dx++) {
+                const half = Math.round(radiusY * Math.sqrt(1 - dx * dx / (radiusX * radiusX)))
+                pixelRaw(x + dx, y + half, c)
+                pixelRaw(x + dx, y - half, c)
+            }
+        }
+    }
+
+    /**
+     * Draw a triangle between three points.
+     */
+    //% blockId=tinylcd_triangle block="draw $style triangle from x $x1 y $y1 to x $x2 y $y2 to x $x3 y $y3 color $color"
+    //% x1.min=0 x1.max=159 y1.min=0 y1.max=159 x2.min=0 x2.max=159 y2.min=0 y2.max=159 x3.min=0 x3.max=159 y3.min=0 y3.max=159
+    //% x2.defl=80 y2.defl=20 x3.defl=40 y3.defl=90
+    //% color.shadow="tinylcd_colorPicker" color.defl=0xffff00
+    //% inlineInputMode=inline
+    //% group="Shapes" weight=73
+    export function drawTriangle(x1: number, y1: number, x2: number, y2: number, x3: number, y3: number, color: number, style: LcdStyle = LcdStyle.Filled) {
+        if (!ensure()) return
+        x1 = x1 | 0
+        y1 = y1 | 0
+        x2 = x2 | 0
+        y2 = y2 | 0
+        x3 = x3 | 0
+        y3 = y3 | 0
+
+        if (style == LcdStyle.Outline) {
+            drawLine(x1, y1, x2, y2, color)
+            drawLine(x2, y2, x3, y3, color)
+            drawLine(x3, y3, x1, y1, color)
+            return
+        }
+
+        const minY = Math.max(0, Math.min(Math.min(y1, y2), y3))
+        const maxY = Math.min(screenHeight - 1, Math.max(Math.max(y1, y2), y3))
+        const c = to565(color)
+        for (let y = minY; y <= maxY; y++) {
+            let firstX = 0
+            let secondX = 0
+            let intersections = 0
+
+            if ((y1 <= y && y2 > y) || (y2 <= y && y1 > y)) {
+                const edgeX = Math.round(x1 + (y - y1) * (x2 - x1) / (y2 - y1))
+                if (intersections == 0) firstX = edgeX
+                else secondX = edgeX
+                intersections++
+            }
+            if ((y2 <= y && y3 > y) || (y3 <= y && y2 > y)) {
+                const edgeX = Math.round(x2 + (y - y2) * (x3 - x2) / (y3 - y2))
+                if (intersections == 0) firstX = edgeX
+                else secondX = edgeX
+                intersections++
+            }
+            if ((y3 <= y && y1 > y) || (y1 <= y && y3 > y)) {
+                const edgeX = Math.round(x3 + (y - y3) * (x1 - x3) / (y1 - y3))
+                if (intersections == 0) firstX = edgeX
+                else secondX = edgeX
+                intersections++
+            }
+
+            if (intersections >= 2) {
+                fillRectRaw(Math.min(firstX, secondX), y, Math.abs(secondX - firstX) + 1, 1, c)
+            } else if (y == maxY) {
+                let minX = screenWidth
+                let maxX = -1
+                if (y1 == maxY) {
+                    minX = Math.min(minX, x1)
+                    maxX = Math.max(maxX, x1)
+                }
+                if (y2 == maxY) {
+                    minX = Math.min(minX, x2)
+                    maxX = Math.max(maxX, x2)
+                }
+                if (y3 == maxY) {
+                    minX = Math.min(minX, x3)
+                    maxX = Math.max(maxX, x3)
+                }
+                if (maxX >= minX) fillRectRaw(minX, y, maxX - minX + 1, 1, c)
+            }
         }
     }
 
@@ -318,7 +461,7 @@ namespace tinylcd {
      * Draw a straight line between two points.
      */
     //% blockId=tinylcd_line block="draw line from x $x0 y $y0 to x $x1 y $y1 color $color"
-    //% x0.min=0 x0.max=159 y0.min=0 y0.max=127 x1.min=0 x1.max=159 y1.min=0 y1.max=127
+    //% x0.min=0 x0.max=159 y0.min=0 y0.max=159 x1.min=0 x1.max=159 y1.min=0 y1.max=159
     //% x1.defl=159 y1.defl=127
     //% color.shadow="tinylcd_colorPicker" color.defl=0xffffff
     //% inlineInputMode=inline
@@ -345,9 +488,19 @@ namespace tinylcd {
         const sx = x0 < x1 ? 1 : -1
         const sy = y0 < y1 ? 1 : -1
         let err = dx + dy
+        let runStart = dx >= -dy ? x0 : y0
+        let runAxis = dx >= -dy ? y0 : x0
         while (true) {
-            pixelRaw(x0, y0, c)
-            if (x0 == x1 && y0 == y1) break
+            if (x0 == x1 && y0 == y1) {
+                if (dx >= -dy) {
+                    fillRectRaw(Math.min(runStart, x0), runAxis, Math.abs(x0 - runStart) + 1, 1, c)
+                } else {
+                    fillRectRaw(runAxis, Math.min(runStart, y0), 1, Math.abs(y0 - runStart) + 1, c)
+                }
+                break
+            }
+            const previousX = x0
+            const previousY = y0
             const e2 = 2 * err
             if (e2 >= dy) {
                 err += dy
@@ -357,6 +510,15 @@ namespace tinylcd {
                 err += dx
                 y0 += sy
             }
+            if (dx >= -dy && y0 != runAxis) {
+                fillRectRaw(Math.min(runStart, previousX), runAxis, Math.abs(previousX - runStart) + 1, 1, c)
+                runStart = x0
+                runAxis = y0
+            } else if (dx < -dy && x0 != runAxis) {
+                fillRectRaw(runAxis, Math.min(runStart, previousY), 1, Math.abs(previousY - runStart) + 1, c)
+                runStart = y0
+                runAxis = x0
+            }
         }
     }
 
@@ -364,7 +526,7 @@ namespace tinylcd {
      * Light up a single dot on the screen.
      */
     //% blockId=tinylcd_pixel block="draw dot at x $x y $y color $color"
-    //% x.min=0 x.max=159 y.min=0 y.max=127
+    //% x.min=0 x.max=159 y.min=0 y.max=159
     //% color.shadow="tinylcd_colorPicker" color.defl=0xffffff
     //% inlineInputMode=inline
     //% group="Shapes" weight=65
@@ -377,7 +539,7 @@ namespace tinylcd {
      * Show text. x and y are the top-left corner of the first letter.
      */
     //% blockId=tinylcd_text block="show text $text at x $x y $y||size $size color $color background $background"
-    //% text.defl="Hello!" x.min=0 x.max=159 y.min=0 y.max=127
+    //% text.defl="Hello!" x.min=0 x.max=159 y.min=0 y.max=159
     //% size.min=1 size.max=5
     //% color.shadow="tinylcd_colorPicker" background.shadow="tinylcd_colorPicker"
     //% expandableArgumentMode="toggle" inlineInputMode=inline
@@ -395,23 +557,58 @@ namespace tinylcd {
     }
 
     /**
+     * Show text with words wrapped to fit the requested width.
+     */
+    //% blockId=tinylcd_text_wrapped block="show wrapped text $text at x $x y $y width $maxWidth||size $size color $color background $background"
+    //% text.defl="A longer message" x.min=0 x.max=159 y.min=0 y.max=159 maxWidth.min=6 maxWidth.max=160 maxWidth.defl=96
+    //% size.min=1 size.max=5
+    //% color.shadow="tinylcd_colorPicker" background.shadow="tinylcd_colorPicker"
+    //% expandableArgumentMode="toggle" inlineInputMode=inline
+    //% group="Text" weight=58
+    export function showWrappedText(text: string, x: number, y: number, maxWidth: number, size: number = 1, color: number = 0xffffff, background: number = 0x000000) {
+        if (!ensure()) return
+        size = Math.constrain(size | 0, 1, 5)
+        const charsPerLine = Math.max(1, Math.idiv(maxWidth, 6 * size))
+        let line = ""
+        let cursorY = y | 0
+        const words = text.split(" ")
+        for (let word of words) {
+            if (line.length > 0 && line.length + word.length + 1 > charsPerLine) {
+                showText(line, x, cursorY, size, color, background)
+                cursorY += 8 * size
+                line = ""
+            }
+            while (word.length > charsPerLine) {
+                showText(word.substr(0, charsPerLine), x, cursorY, size, color, background)
+                cursorY += 8 * size
+                word = word.substr(charsPerLine)
+            }
+            if (word.length > 0) {
+                if (line.length > 0) line += " "
+                line += word
+            }
+        }
+        if (line.length > 0) showText(line, x, cursorY, size, color, background)
+    }
+
+    /**
      * Show text in the middle of the screen (left to right).
      */
     //% blockId=tinylcd_text_center block="show text $text centered at y $y||size $size color $color background $background"
-    //% text.defl="Hello!" y.min=0 y.max=127
+    //% text.defl="Hello!" y.min=0 y.max=159
     //% size.min=1 size.max=5
     //% color.shadow="tinylcd_colorPicker" background.shadow="tinylcd_colorPicker"
     //% expandableArgumentMode="toggle" inlineInputMode=inline
     //% group="Text" weight=55
     export function showTextCentered(text: string, y: number, size: number = 2, color: number = 0xffffff, background: number = 0x000000) {
-        showText(text, Math.idiv(WIDTH - textWidth(text, size), 2), y, size, color, background)
+        showText(text, Math.idiv(screenWidth - textWidth(text, size), 2), y, size, color, background)
     }
 
     /**
      * Show a number. x and y are the top-left corner.
      */
     //% blockId=tinylcd_number block="show number $value at x $x y $y||size $size color $color background $background"
-    //% x.min=0 x.max=159 y.min=0 y.max=127
+    //% x.min=0 x.max=159 y.min=0 y.max=159
     //% size.min=1 size.max=5
     //% color.shadow="tinylcd_colorPicker" background.shadow="tinylcd_colorPicker"
     //% expandableArgumentMode="toggle" inlineInputMode=inline
@@ -424,7 +621,7 @@ namespace tinylcd {
      * Draw a coloured box with text in the middle. Great for buttons and answers.
      */
     //% blockId=tinylcd_box block="draw box at x $x y $y width $width height $height color $color||text $text text color $textColor size $size"
-    //% x.min=0 x.max=159 y.min=0 y.max=127 width.defl=70 height.defl=40
+    //% x.min=0 x.max=159 y.min=0 y.max=159 width.defl=70 height.defl=40
     //% size.min=1 size.max=5
     //% color.shadow="tinylcd_colorPicker" color.defl=0x0000ff textColor.shadow="tinylcd_colorPicker"
     //% expandableArgumentMode="toggle" inlineInputMode=inline
@@ -436,6 +633,28 @@ namespace tinylcd {
         const tx = x + Math.idiv(width - textWidth(text, size), 2)
         const ty = y + Math.idiv(height - 7 * size, 2)
         showText(text, tx, ty, size, textColor, color)
+    }
+
+    /**
+     * Draw a progress bar with a background and a value-scaled foreground.
+     */
+    //% blockId=tinylcd_progress block="draw progress bar at x $x y $y width $width height $height value $value out of $maximum color $color||background $background"
+    //% x.min=0 x.max=159 y.min=0 y.max=159 width.defl=100 height.defl=12 value.min=0 maximum.min=1 maximum.defl=100
+    //% color.shadow="tinylcd_colorPicker" color.defl=0x00ff00 background.shadow="tinylcd_colorPicker" background.defl=0x303030
+    //% expandableArgumentMode="toggle" inlineInputMode=inline
+    //% group="Widgets" weight=30
+    export function drawProgressBar(x: number, y: number, width: number, height: number, value: number, maximum: number, color: number, background: number = 0x303030) {
+        if (!ensure()) return
+        x = x | 0
+        y = y | 0
+        width = Math.max(0, width | 0)
+        height = Math.max(0, height | 0)
+        let filledWidth = 0
+        if (maximum > 0) {
+            filledWidth = Math.round(width * Math.constrain(value, 0, maximum) / maximum)
+        }
+        fillRectRaw(x, y, width, height, to565(background))
+        fillRectRaw(x, y, filledWidth, height, to565(color))
     }
 
     /**
@@ -456,7 +675,7 @@ namespace tinylcd {
     //% blockId=tinylcd_icon block="draw icon $icon at x $x y $y||size $size color $color"
     //% icon.fieldEditor="imagedropdown" icon.fieldOptions.columns="5"
     //% icon.fieldOptions.width="380" icon.fieldOptions.maxRows=4
-    //% x.min=0 x.max=159 y.min=0 y.max=127 size.min=1 size.max=24
+    //% x.min=0 x.max=159 y.min=0 y.max=159 size.min=1 size.max=24
     //% color.shadow="tinylcd_colorPicker"
     //% expandableArgumentMode="toggle" inlineInputMode=inline
     //% group="Pictures" weight=35
@@ -468,7 +687,7 @@ namespace tinylcd {
      * Draw a micro:bit image, made bigger. Each LED becomes a square of "size" pixels.
      */
     //% blockId=tinylcd_image block="draw image $img at x $x y $y||size $size color $color"
-    //% x.min=0 x.max=159 y.min=0 y.max=127 size.min=1 size.max=24
+    //% x.min=0 x.max=159 y.min=0 y.max=159 size.min=1 size.max=24
     //% color.shadow="tinylcd_colorPicker"
     //% expandableArgumentMode="toggle" inlineInputMode=inline
     //% group="Pictures" weight=30

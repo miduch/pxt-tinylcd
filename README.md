@@ -12,14 +12,16 @@ MakeCode blocks for the [Waveshare 1.8" LCD for micro:bit](https://www.waveshare
 
 | Group | Blocks |
 | --- | --- |
-| Screen | start screen, fill screen, set brightness, screen width / height |
-| Shapes | rectangle and circle (filled or outline), line, dot |
-| Text | show text, show text centered, show number, box with text, width of text |
+| Screen | start screen, fill screen, set brightness, set screen rotation, screen width / height |
+| Shapes | rectangle, circle, ellipse, and triangle (filled or outline), line, dot |
+| Text | show text, show wrapped text, show text centered, show number, box with text, width of text |
 | Pictures | draw any micro:bit icon or image, scaled up |
 | Colors | color picker, mix red / green / blue, random color |
+| Widgets | draw a progress bar |
 
-The screen is 160 pixels wide and 128 pixels tall. `x = 0, y = 0` is the top-left corner.
+The screen starts in landscape at 160 x 128 pixels. Use the rotation block for portrait (128 x 160) or flipped orientations; changing orientation clears the screen. The width and height blocks report the current dimensions. `x = 0, y = 0` is the top-left corner. Check portrait alignment on the target panel, as the Waveshare reference only documents its default landscape offsets.
 Text comes in sizes 1 to 5; every letter is `6 x size` pixels wide and `8 x size` pixels tall.
+A filled rectangle can also be used to clear or repaint just part of the screen.
 
 ## Example: Math Stars
 
