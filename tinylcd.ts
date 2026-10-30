@@ -39,7 +39,6 @@ namespace tinylcd {
     `
 
     let started = false
-    let simulator = false
     let chunk: Buffer = null
     let chunkColor = -1
     let glyph: Buffer = null
@@ -158,7 +157,7 @@ namespace tinylcd {
 
     function ensure(): boolean {
         if (!started) start()
-        return !simulator
+        return true
     }
 
     /**
@@ -169,9 +168,7 @@ namespace tinylcd {
     export function start() {
         if (started) return
         started = true
-        simulator = control.deviceDalVersion() == "sim"
         chunk = pins.createBuffer(640)
-        if (simulator) return
 
         pins.digitalWritePin(PIN_RAM_CS, 1)
         pins.digitalWritePin(PIN_CS, 1)
